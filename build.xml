@@ -1,0 +1,316 @@
+<!-- The Eclipse Ant Build File for Compiling Flex and AIR Applications -->
+<!-- Minimum Requirements : Eclipse with Java enabled, Flex SDK, AIR SDK -->
+<!-- Created by Ramkumar. email : mr.ecthelion@gmail.com
+Non-Ant dummies feel free to edit. Ant dummies.. Learn Ant! It's simple! -->
+
+<!-- How to Use this Build File
+* Create a new Project in Eclipse.
+* Copy this build.xml file into the Project folder.
+* Edit the values of the properties marked required :
+- Path of the your installed Adobe Flex SDK
+- Password for certificate signing
+* Add the build file to your Ant View.
+* Initialize creates project directories and source MXML file similar to the Flex Builder
+environment.
+* Compile creates a compiled SWF of your Flex/AIR Application in the /bin-debug directory.
+* Test launches your compiled application in a browser for Flex and through the ADL 
+for AIR Applications.
+* Package exports your application ito /bin-release directory.
+-->
+
+<!-- Tip : To directly compile or package as Flex or AIR Application and skip the input
+prompt, select the _test(Flex/AIR) or package_(Flex/AIR) -->
+
+<!-- IMPORTANT : For AIR Applications, in your Application Descriptor XML file, set
+the content tag to the <Application Name>.swf clearing the Flex Builder message. -->
+
+
+<!-- BUILD FILE BEGINS -->
+
+
+<!-- Name of Your Ant Build (Enter your Project Name). Required -->
+<project name="splineNew">
+
+	<!-- Feel free to add properties for your Ant Build. Just don't forget to reference
+	them using ${PROPERTYNAME} -->
+
+	<!-- Edit the path of your FLEX SDK ROOT FOLDER. Required -->
+	<property name="SDK_HOME" location="/home/dk/dk_projects/eclipse/eclipse/flex" />
+	
+	<!-- Use the property environment to load Environment Variables -->
+	<property environment="env" />
+
+	<!-- Flex Settings -->
+
+	<!-- Path of your Flex Compiler (MXMLC.jar) -->
+	<property name="MXMLC.JAR" value="${SDK_HOME}/lib/mxmlc.jar" />
+
+	<!-- Debug option for Compilation -->
+	<property name="DEBUG" value="true" />
+
+	<!-- Name of your Application (source file name) -->
+	<property name="APP_NAME" value="${ant.project.name}" />
+
+	<!-- Path of your current Project Directory -->
+	<property name="APP_ROOT" value="${basedir}" />
+
+	<!-- Path of the MXML source file for your AIR/Flex application -->
+	<property name="MAIN_SOURCE_FILE" value="${APP_ROOT}/src/${APP_NAME}.mxml" />
+
+	<!-- Directory of your compiled output SWF File -->
+	<property name="OUTPUT_DIR" value="bin-debug" />
+
+	<!-- Terminal command for your browser for testing your Flex Application -->
+	<property name="BROWSER" value="chromium-browser" />
+
+	<!-- AIR Settings -->
+	
+	<!-- Path of your Air Debug Launcher (ADL) -->
+	<property name="ADL" value="${SDK_HOME}/bin/adl" />
+
+	<!-- Path of your Air Development Tool (ADT) - Packager -->
+	<property name="ADT.JAR" value="${SDK_HOME}/lib/adt.jar" />
+
+	<!-- Name of your Application Descriptor File (For AIR Apps), usually 
+	'projectname-app.xml' by Flex Builder naming convention. Required -->
+	<property name="APP_DESCRIPTOR" value="${APP_NAME}-app.xml" />
+	
+	<!-- Name of your packaged AIR Application (.air installer) -->
+	<property name="AIR_NAME" value="${APP_NAME}.air" />
+
+	<!-- Path of your packaged AIR Application (.air installer) -->
+	<property name="AIR_PATH" value="${APP_ROOT}/bin-release" />
+		
+	<!-- Certificate Settings -->
+
+	<!-- Storetype of your certificate. Default is Public-Key Cryptography Standards -->
+	<property name="STORETYPE" value="pkcs12" />
+
+	<!-- Path of the Keystore File (.pfx or .p12 file) -->
+	<property name="KEYSTORE" value="${APP_ROOT}/certificate.pfx" />
+
+	<!-- The password for signing your certificate. Required -->
+	<property name="PASSWORD" value="dikembemutombo" />
+	
+		
+<!-- ANT TASKS -->
+
+	
+	<!-- Application Type -->
+	
+	<target name="_Application" description="Flex/AIR Application" >
+		
+		<input message="What application are you developing?" 
+		validargs="Flex Application,AIR Application" defaultvalue="Flex Application"
+		addproperty="APP_TYPE" />
+		
+	</target>
+	
+	<!-- Initialize -->
+	
+	<target name="Initialize" description="Initializes your Flex/AIR Project" 
+		depends="_Application">
+
+		<!-- Creates 4 folders : bin-debug, bin-release, libs, src -->
+		<!-- Creates 1 MXML Source File in /src directory --> 
+		
+		<!-- bin-debug contains compiled Flex/AIR Applications for testing -->
+		<!-- bin-release contains finished Flex and packaged AIR Applications -->
+		<!-- libs contains the libraries used in your application -->
+		<!-- src contains the source code for your application -->
+		
+		<mkdir dir="bin-debug" />
+		<mkdir dir="bin-release" />
+		<mkdir dir="libs" />
+		<mkdir dir="src" />
+	
+		<!-- Specifies mx:Application or mx:WindowedApplication -->
+		<condition property="APP_TAG" value="Application" else="WindowedApplication" >
+			<equals arg1="${APP_TYPE}" arg2="Flex Application" />
+		</condition>
+		
+		<!-- Checks whether the MXML File is already created -->
+		<condition property="MXML_CONTENT" value="" 
+		else="&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;
+\n&lt;mx:${APP_TAG} xmlns:mx=&quot;http://www.adobe.com/2006/mxml&quot;&gt;
+\n&lt;/mx:${APP_TAG}&gt;" >
+			
+			<available file="${APP_ROOT}/src/${APP_NAME}.mxml" property="" />
+		
+		</condition>
+		
+		<!-- Creates the MXML Source File with default values if not already created -->
+		<exec executable="echo" output="${APP_ROOT}/src/${APP_NAME}.mxml" append="true">
+			<arg value="-e" />
+			<arg value="${MXML_CONTENT}"/>
+		</exec>
+		
+		<condition property="INIT_RESULT" 
+		value="${APP_NAME}.mxml Source File for ${APP_TYPE} created in /src directory."
+		else="${APP_NAME}.mxml Source File already exists in /src directory." >
+			<not><equals arg1="${MXML_CONTENT}" arg2="" /></not>
+		</condition>
+		
+		<echo>Project Folders : bin-debug, bin-release, libs and src created.
+${INIT_RESULT}</echo>
+		
+	</target>
+	
+	<!-- Compile -->
+
+	<target name="Compile" description="Compiles your Application to an executable SWF">
+		
+		<!-- Delete the contents of the Output Directory -->
+		<delete dir="${APP_ROOT}/${OUTPUT_DIR}" />
+		
+		<java jar="${MXMLC.JAR}" fork="true" failonerror="true">
+
+			<arg value="-debug=${DEBUG}" />
+
+			<!-- Path of your .config file. -->
+			<arg value="+flexlib=${SDK_HOME}/frameworks" />
+
+			<!-- The .config file used to compile. 'air-config.xml' compiles both AIR
+			and Flex applications. Comment to use flex-config.xml -->
+			<arg value="+configname=air" />
+
+			<!-- Path of your MXML source file -->
+			<arg value="-file-specs=${MAIN_SOURCE_FILE}" />
+
+			<!-- Path of your compiled output SWF file -->
+			<arg value="-output=${APP_ROOT}/${OUTPUT_DIR}/${APP_NAME}.swf" />
+			
+			<!-- For adding any other mxmlc compiler options, visit 
+			http://ahatch.com/log/2009/07/note-to-self-mxmlc-compiler-arguments/ -->
+
+		</java>
+		
+		<!-- Copies Source Assets to the Output Folder -->
+		<copy todir="${APP_ROOT}/${OUTPUT_DIR}" includeemptydirs="false" >
+			<fileset dir="${APP_ROOT}/src" excludes="**/*.mxml"/>
+		</copy>
+		
+		<echo>${APP_NAME}.swf compiled SWF File created in /${OUTPUT_DIR} directory.</echo>
+		
+	</target>
+
+	<!-- Test -->
+
+	<target name="Test" depends="_Application" description="Allows you to preview your application">
+
+		<!-- Launches your Flex Application in a browser -->
+		<!-- Launches your AIR Application using the ADL -->
+		<condition property="testTarget" value="_TestFlex" else="_TestAIR" >
+				<equals arg1="${APP_TYPE}" arg2="Flex Application" />
+		</condition>
+		
+		<antcall target="${testTarget}" />
+			
+	</target>
+	
+	<!-- Test Settings for Flex Applications -->
+	<target name="_TestFlex" depends="Compile" description="Test Flex Application">
+
+		<exec executable="${BROWSER}">
+			<arg value="${APP_ROOT}/${OUTPUT_DIR}/${APP_NAME}.swf" />
+		</exec>
+	
+	</target>
+	
+	<!-- Test Settings for AIR Applications -->
+	<target name="_TestAIR" depends="Compile" description="Test AIR Application">
+			
+		<exec executable="${ADL}">
+      		<arg value="${APP_ROOT}/${OUTPUT_DIR}/${APP_DESCRIPTOR}"/>
+      	</exec>
+		
+	</target>
+
+	<!-- Certificate -->
+
+	<target name="_Certificate" description="Creates a self-signed certificate for packaging your AIR Application.">
+
+		<java jar="${ADT.JAR}" fork="true" failonerror="true">
+
+			<!--Edit these for your signing options -->
+
+			<arg value="-certificate" />
+			<arg value="-cn" />
+			<arg value="SelfSigned" />
+			<arg value="1024-RSA" />
+			<arg value="${KEYSTORE}" />
+			<arg value="${PASSWORD}" />
+
+			<!-- For adding any other ADT arguments, visit
+			http://livedocs.adobe.com/flex/3/html/help.html?content=CommandLineTools_5.html -->
+			
+		</java>
+
+		<echo>Self-signed certificate created.
+${KEYSTORE} created with password ${PASSWORD}.</echo>
+	</target>
+
+	<!-- Package -->
+
+	<target name="Package" depends="_Application" 
+	description="Packages your Flex/AIR Application to the /bin-release directory">
+
+		<!-- Packages your Flex Application into a SWF File in /bin-release directory-->
+		<!-- Packages your AIR Application into AIR Installer in /bin-release directory -->
+		
+		<condition property="packageTarget" value="_PackageFlex" else="_PackageAIR" >
+			<equals arg1="${APP_TYPE}" arg2="Flex Application" />
+		</condition>
+			
+		<antcall target="${packageTarget}" />
+	
+	</target>
+
+	<target name="_PackageFlex" >
+	
+		<antcall target="Compile">
+			<param name="OUTPUT_DIR" value="bin-release" />
+		</antcall>
+	
+	</target>
+	
+	<target name="_PackageAIR">
+		
+		<antcall target="Compile" />
+		<antcall target="_Certificate" />
+		
+		<java jar="${ADT.JAR}" fork="true" failonerror="true">
+
+			<!-- Packages the Application into .air -->
+			<arg value="-package" />
+
+			<arg value="-storetype" />
+			<arg value="${STORETYPE}" />
+			<arg value="-keystore" />
+			<arg value="${KEYSTORE}" />
+			<arg value="-storepass" />
+			<arg value="${PASSWORD}" />
+
+			<!-- Package File Settings -->
+			<arg value="${AIR_PATH}/${AIR_NAME}" />
+
+			<!-- Path of your Application Descriptor XML File -->
+			<arg value="${APP_ROOT}/bin-debug/${APP_DESCRIPTOR}" />
+
+			<!-- Assets that have to be included into your .air Package. -->
+
+			<arg value="-C" />
+			<arg value="bin-debug" />
+			<arg value="." />
+			
+			<!-- For adding any other ADT package arguments, visit 
+			http://help.adobe.com/en_US/AIR/1.5/devappsflex/WS5b3ccc516d4fbf351e63e3d118666ade46-7fd6.html -->
+
+		</java>
+		
+		<echo>${AIR_NAME} packaged AIR Installer created in ${AIR_PATH} directory.</echo>
+		
+	</target>
+	
+</project>
+<!-- BUILD FILE ENDS -->
